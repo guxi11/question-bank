@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../store/context'
-import { generateQuiz, createSession } from '../lib/quiz'
+import { generateQuiz, createSession, getAttemptedIds } from '../lib/quiz'
 import { type QuizConfig, type QuestionType, type Difficulty } from '../types'
 
 const COUNTS = [10, 20, 50, 100]
@@ -34,7 +34,7 @@ export const Home = () => {
 
   const startQuiz = () => {
     const config: QuizConfig = { count, types, difficulties }
-    const ids = generateQuiz(state.questions, config)
+    const ids = generateQuiz(state.questions, config, state.history)
     if (ids.length === 0) {
       alert('没有符合条件的题目')
       return
@@ -49,6 +49,10 @@ export const Home = () => {
   // Stats
   const typeStats = ['single', 'multiple', 'judge', 'blank'] as const
   const diffStats = ['easy', 'medium', 'hard'] as const
+  const attempted = getAttemptedIds(state.history)
+  const attemptedCount = state.questions.filter(q => attempted.has(q.id)).length
+  const undoneCount = total - attemptedCount
+  const coverage = total > 0 ? Math.round((attemptedCount / total) * 100) : 0
 
   return (
     <div className="pb-20 p-4">
@@ -89,6 +93,26 @@ export const Home = () => {
                 </div>
               )
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Coverage */}
+      {total > 0 && (
+        <div className="bg-purple-50 rounded-xl p-3 mb-6">
+          <div className="flex justify-between items-center mb-2">
+            <p className="text-xs text-purple-600">刷题覆盖</p>
+            <span className="text-xs font-medium text-purple-700">{coverage}%</span>
+          </div>
+          <div className="w-full bg-purple-200 rounded-full h-2 mb-2">
+            <div
+              className="bg-purple-600 h-2 rounded-full transition-all"
+              style={{ width: `${coverage}%` }}
+            />
+          </div>
+          <div className="flex justify-between text-xs text-gray-600">
+            <span>已做 {attemptedCount} 题</span>
+            <span>未做 {undoneCount} 题</span>
           </div>
         </div>
       )}

@@ -1,16 +1,29 @@
 import { type Question, type QuizConfig, type QuizSession, type QuizResult } from '../types'
 import { shuffle, hashStr } from './utils'
 
+export const getAttemptedIds = (history: readonly QuizResult[]): Set<string> =>
+  new Set(history.flatMap(r => r.details.map(d => d.questionId)))
+
 export const generateQuiz = (
   questions: readonly Question[],
   config: QuizConfig,
+  history: readonly QuizResult[] = [],
 ): string[] => {
   const filtered = questions.filter(q => {
     if (config.types.length > 0 && !config.types.includes(q.type)) return false
     if (config.difficulties.length > 0 && !config.difficulties.includes(q.difficulty)) return false
     return true
   })
-  return shuffle(filtered).slice(0, config.count).map(q => q.id)
+  const attempted = getAttemptedIds(history)
+  const [undone, done] = filtered.reduce<[Question[], Question[]]>(
+    ([u, d], q) => attempted.has(q.id) ? [u, [...d, q]] : [[...u, q], d],
+    [[], []],
+  )
+  // prioritize undone, fill remainder with done
+  const picked = shuffle(undone).slice(0, config.count)
+  const remaining = config.count - picked.length
+  if (remaining > 0) picked.push(...shuffle(done).slice(0, remaining))
+  return picked.map(q => q.id)
 }
 
 const normalizeAnswer = (s: string) =>
