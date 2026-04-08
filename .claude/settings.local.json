@@ -9,7 +9,8 @@
       "Bash(npx mammoth:*)",
       "Bash(npm i:*)",
       "Bash(node:*)",
-      "Bash(npx vitest:*)"
+      "Bash(npx vitest:*)",
+      "Bash(git rm:*)"
     ]
   }
 }
