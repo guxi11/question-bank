@@ -108,7 +108,7 @@ const parseBlock = (block: string, source: string, index: number): Question | nu
 
   // Question content: first line, strip leading number and type tag
   const content = rawLines[0]
-    .replace(/^\d+[.、．]\s*/, '')
+    .replace(/^\d+[.、．]?\s*/, '')
     .replace(/【[^】]+】/, '')
     .trim()
 
@@ -144,7 +144,7 @@ const parseBlock = (block: string, source: string, index: number): Question | nu
 // Allow optional leading whitespace before the number
 const splitBlocks = (text: string): string[] =>
   text
-    .split(/(?=^\s*\d+[.、．]\s)/m)
+    .split(/(?=^\s*\d+[.、．\s])/m)
     .map(b => b.trim())
     .filter(b => b.length > 0 && /^\d+/.test(b))
 

@@ -11,6 +11,12 @@ const fixture = readFileSync(
 )
 const questions = parseText(fixture, 'a.docx')
 
+const fixtureB = readFileSync(
+  resolve(__dirname, '__fixtures__/b.txt'),
+  'utf-8',
+)
+const questionsB = parseText(fixtureB, 'b.docx')
+
 // ── helpers ──
 
 const byContent = (keyword: string) =>
@@ -21,10 +27,8 @@ const allOf = (type: string) => questions.filter(q => q.type === type)
 // ── 总量与完整性 ──
 
 describe('总量', () => {
-  it('应解析出 746 道题（docx 中实际题目数）', () => {
-    // 当前已知只能拿到 744，主要因为 2 题有前导空格；
-    // 此 case 先标记预期值，修复 parser 后改为 746
-    expect(questions.length).toBeGreaterThanOrEqual(744)
+  it('应解析出 762 道题', () => {
+    expect(questions.length).toBe(762)
   })
 
   it('每道题都有非空 content', () => {
@@ -185,5 +189,83 @@ describe('ID', () => {
   it('所有 ID 唯一', () => {
     const ids = new Set(questions.map(q => q.id))
     expect(ids.size).toBe(questions.length)
+  })
+})
+
+// ── b.docx 测试 ──
+
+const byContentB = (keyword: string) =>
+  questionsB.find(q => q.content.includes(keyword))
+
+const allOfB = (type: string) => questionsB.filter(q => q.type === type)
+
+describe('b.docx 总量', () => {
+  it('应解析出 40 道题', () => {
+    expect(questionsB.length).toBe(40)
+  })
+
+  it('每道题都有非空 content', () => {
+    questionsB.forEach(q =>
+      expect(q.content, `id=${q.id}`).not.toBe(''),
+    )
+  })
+
+  it('每道题都有 answer', () => {
+    const missing = questionsB.filter(q => !q.answer)
+    expect(missing.length).toBe(0)
+  })
+})
+
+describe('b.docx 题型识别', () => {
+  it('单选题 18 道', () => {
+    expect(allOfB('single').length).toBe(18)
+  })
+
+  it('多选题 12 道', () => {
+    expect(allOfB('multiple').length).toBe(12)
+  })
+
+  it('判断题 8 道', () => {
+    expect(allOfB('judge').length).toBe(8)
+  })
+
+  it('填空题 2 道', () => {
+    expect(allOfB('blank').length).toBe(2)
+  })
+})
+
+describe('b.docx 无句点题号（23 【多选题】）', () => {
+  it('题号无句点的题目应被解析', () => {
+    const q = byContentB('著录信息源分为')
+    expect(q, '题号无句点的 Q23 丢失').toBeDefined()
+    expect(q!.type).toBe('multiple')
+    expect(q!.options).toHaveLength(5)
+    expect(q!.answer).toBe('AB')
+  })
+})
+
+describe('b.docx 句点后无空格（13.【单选题】）', () => {
+  it('句点后无空格的题目应被解析', () => {
+    const q = byContentB('ISBN号2007')
+    expect(q, '句点后无空格的 Q13 丢失').toBeDefined()
+    expect(q!.type).toBe('single')
+  })
+
+  it('末尾填空题也应被解析', () => {
+    const q = byContentB('文献语种')
+    expect(q, '句点后无空格的 Q40 丢失').toBeDefined()
+    expect(q!.type).toBe('blank')
+    expect(q!.answer).toBe('101')
+  })
+})
+
+describe('b.docx source 与 ID', () => {
+  it('所有题目 source 为 b.docx', () => {
+    questionsB.forEach(q => expect(q.source).toBe('b.docx'))
+  })
+
+  it('所有 ID 唯一', () => {
+    const ids = new Set(questionsB.map(q => q.id))
+    expect(ids.size).toBe(questionsB.length)
   })
 })
