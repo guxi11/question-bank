@@ -25,7 +25,10 @@ const extractField = (lines: string[], ...labels: string[]): string => {
     const n = norm(line)
     for (const label of labels) {
       if (n.startsWith(label + ':')) {
-        return n.slice(label.length + 1).trim()
+        let value = n.slice(label.length + 1)
+        // Truncate at next known label (handles squished metadata)
+        value = value.replace(/(难易程度|难度|答案解析|答案|正确答案):.*$/, '').trim()
+        return value
       }
     }
   }
@@ -35,7 +38,14 @@ const extractField = (lines: string[], ...labels: string[]): string => {
 // Extract multi-line explanation (may span several lines until end of block)
 const extractExplanation = (lines: string[]): string => {
   const idx = lines.findIndex(l => /^答案解析[：:]/.test(l))
-  if (idx === -1) return ''
+  if (idx === -1) {
+    // Also handle squished case where 答案解析 is mid-line
+    for (const line of lines) {
+      const m = norm(line).match(/答案解析:(.+)$/)
+      if (m) return m[1].trim()
+    }
+    return ''
+  }
   const first = norm(lines[idx]).replace(/^答案解析:/, '').trim()
   const rest = lines.slice(idx + 1).join('').trim()
   return rest ? first + rest : first
@@ -43,8 +53,19 @@ const extractExplanation = (lines: string[]): string => {
 
 const isOptionLine = (line: string) => /^[A-Za-z][.、．]\s*\S/.test(line.trim())
 
+// Split squished option lines like "A. fooB. barC. baz" into separate options
+const expandOptionLines = (lines: string[]): string[] =>
+  lines.flatMap(line => {
+    const trimmed = line.trim()
+    // Check if this line has multiple options squished together
+    const parts = trimmed.split(/(?=[A-Za-z][.、．]\s*)/).filter(Boolean)
+    return parts.length > 1 && parts.every(p => /^[A-Za-z][.、．]/.test(p))
+      ? parts.map(p => p.trim())
+      : [trimmed]
+  })
+
 const parseOptions = (lines: string[]): string[] =>
-  lines
+  expandOptionLines(lines)
     .filter(isOptionLine)
     .map(l => l.trim().replace(/^[A-Za-z][.、．]\s*/, ''))
 
@@ -54,21 +75,35 @@ const detectType = (
   answer: string,
   optionCount: number,
 ): QuestionType => {
-  if (/正确答案[：:]\s*(正确|错误|对|错)/.test(block)) return 'judge'
+  // Judge: check answer value directly (covers both 答案: and 正确答案: labels)
+  if (/^(正确|错误|对|错)$/.test(answer.trim())) return 'judge'
   if (/【多选题】/.test(block)) return 'multiple'
   if (/【单选题】/.test(block)) return 'single'
   if (/_{2,}/.test(block)) return 'blank'
   if (optionCount === 0) return 'blank'
-  // Infer from answer: 2+ letters = multiple
-  if (/^[A-Za-z]{2,}$/.test(answer)) return 'multiple'
+  // Infer from answer: 2+ letters (with or without comma/space separators) = multiple
+  const letters = answer.replace(/[,，\s]/g, '')
+  if (/^[A-Za-z]{2,}$/.test(letters)) return 'multiple'
   if (/^[A-Za-z]$/.test(answer)) return 'single'
   return 'blank'
 }
 
-const parseBlock = (block: string, source: string): Question | null => {
+// Split squished metadata lines into separate lines
+// e.g. "答案：A,C,D难易程度：易答案解析：..." → 3 separate lines
+const expandMetaLines = (lines: string[]): string[] =>
+  lines.flatMap(line => {
+    const n = line.trim()
+    // Split at known label boundaries (lookahead keeps the label with its value)
+    const parts = n.split(/(?=(?:难易程度|难度|答案解析|正确答案|答案)[：:])/)
+    return parts.length > 1 ? parts.map(p => p.trim()).filter(Boolean) : [n]
+  })
+
+const parseBlock = (block: string, source: string, index: number): Question | null => {
   if (!block.trim()) return null
 
-  const rawLines = block.split('\n').map(l => l.trim()).filter(Boolean)
+  const rawLines = expandMetaLines(
+    block.split('\n').map(l => l.trim()).filter(Boolean),
+  )
   if (rawLines.length < 2) return null
 
   // Question content: first line, strip leading number and type tag
@@ -79,7 +114,7 @@ const parseBlock = (block: string, source: string): Question | null => {
 
   if (!content) return null
 
-  // Collect option lines
+  // Collect option lines (with squished expansion)
   const options = parseOptions(rawLines.slice(1))
 
   // Extract metadata
@@ -91,7 +126,7 @@ const parseBlock = (block: string, source: string): Question | null => {
 
   const type = detectType(block, answerRaw, options.length)
 
-  const id = hashStr(source + content)
+  const id = hashStr(source + content + answerRaw + index)
 
   return {
     id: id.toString(),
@@ -106,15 +141,16 @@ const parseBlock = (block: string, source: string): Question | null => {
 }
 
 // Split raw text into per-question blocks by numbered prefixes
+// Allow optional leading whitespace before the number
 const splitBlocks = (text: string): string[] =>
   text
-    .split(/(?=^\d+[.、．]\s)/m)
+    .split(/(?=^\s*\d+[.、．]\s)/m)
     .map(b => b.trim())
     .filter(b => b.length > 0 && /^\d+/.test(b))
 
 export const parseText = (text: string, source: string): Question[] =>
   splitBlocks(text)
-    .map(block => parseBlock(block, source))
+    .map((block, i) => parseBlock(block, source, i))
     .filter((q): q is Question => q !== null)
 
 export const parseDocx = async (

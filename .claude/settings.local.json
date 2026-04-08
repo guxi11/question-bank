@@ -4,7 +4,12 @@
       "Bash(npm create:*)",
       "Bash(npm install:*)",
       "Bash(npm run:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(node -e \":*)",
+      "Bash(npx mammoth:*)",
+      "Bash(npm i:*)",
+      "Bash(node:*)",
+      "Bash(npx vitest:*)"
     ]
   }
 }
