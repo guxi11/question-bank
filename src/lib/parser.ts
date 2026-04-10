@@ -75,10 +75,12 @@ const detectType = (
   answer: string,
   optionCount: number,
 ): QuestionType => {
-  // Judge: check answer value directly (covers both 答案: and 正确答案: labels)
+  // Judge: check answer value or tag
   if (/^(正确|错误|对|错)$/.test(answer.trim())) return 'judge'
+  if (/【判断题】/.test(block)) return 'judge'
   if (/【多选题】/.test(block)) return 'multiple'
   if (/【单选题】/.test(block)) return 'single'
+  if (/【填空题】/.test(block)) return 'blank'
   if (/_{2,}/.test(block)) return 'blank'
   if (optionCount === 0) return 'blank'
   // Infer from answer: 2+ letters (with or without comma/space separators) = multiple
@@ -94,7 +96,7 @@ const expandMetaLines = (lines: string[]): string[] =>
   lines.flatMap(line => {
     const n = line.trim()
     // Split at known label boundaries (lookahead keeps the label with its value)
-    const parts = n.split(/(?=(?:难易程度|难度|答案解析|正确答案|答案)[：:])/)
+    const parts = n.split(/(?=(?:难易程度|难度|答案解析|正确答案|(?<!正确)答案(?!解析))[：:])/)
     return parts.length > 1 ? parts.map(p => p.trim()).filter(Boolean) : [n]
   })
 
@@ -126,7 +128,12 @@ const parseBlock = (block: string, source: string, index: number): Question | nu
 
   const type = detectType(block, answerRaw, options.length)
 
-  const id = hashStr(source + content + answerRaw + index)
+  // Normalize judge answers: 对→正确, 错→错误
+  const answer = type === 'judge'
+    ? (/^(错误|错)$/.test(answerRaw.trim()) ? '错误' : '正确')
+    : answerRaw
+
+  const id = hashStr(source + content + answer + index)
 
   return {
     id: id.toString(),
@@ -134,7 +141,7 @@ const parseBlock = (block: string, source: string, index: number): Question | nu
     difficulty,
     content,
     options,
-    answer: answerRaw,
+    answer,
     explanation,
     source,
   }

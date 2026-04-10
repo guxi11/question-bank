@@ -269,3 +269,92 @@ describe('b.docx source 与 ID', () => {
     expect(ids.size).toBe(questionsB.length)
   })
 })
+
+// ── c.docx 测试 ──
+
+const fixtureC = readFileSync(
+  resolve(__dirname, '__fixtures__/c.txt'),
+  'utf-8',
+)
+const questionsC = parseText(fixtureC, 'c.docx')
+
+const byContentC = (keyword: string) =>
+  questionsC.find(q => q.content.includes(keyword))
+
+const allOfC = (type: string) => questionsC.filter(q => q.type === type)
+
+describe('c.docx 总量', () => {
+  it('应解析出 744 道题', () => {
+    expect(questionsC.length).toBe(744)
+  })
+
+  it('每道题都有非空 content', () => {
+    questionsC.forEach(q =>
+      expect(q.content, `id=${q.id}`).not.toBe(''),
+    )
+  })
+
+  it('每道题都有 answer', () => {
+    const missing = questionsC.filter(q => !q.answer)
+    expect(missing.length).toBe(0)
+  })
+})
+
+describe('c.docx 题型识别', () => {
+  it('单选题 323 道', () => {
+    expect(allOfC('single').length).toBe(323)
+  })
+
+  it('多选题 214 道', () => {
+    expect(allOfC('multiple').length).toBe(214)
+  })
+
+  it('判断题 153 道', () => {
+    expect(allOfC('judge').length).toBe(153)
+  })
+
+  it('填空题 54 道', () => {
+    expect(allOfC('blank').length).toBe(54)
+  })
+})
+
+describe('c.docx 判断题答案归一化', () => {
+  it('判断题答案只有 正确/错误 两种', () => {
+    allOfC('judge').forEach(q =>
+      expect(q.answer, `"${q.content.slice(0, 30)}" answer=${q.answer}`).toMatch(/^(正确|错误)$/),
+    )
+  })
+
+  it('答案为 错误 的判断题数量正确', () => {
+    expect(allOfC('judge').filter(q => q.answer === '错误').length).toBe(80)
+  })
+
+  it('答案为 正确 的判断题数量正确', () => {
+    expect(allOfC('judge').filter(q => q.answer === '正确').length).toBe(73)
+  })
+})
+
+describe('c.docx 正确答案标签', () => {
+  it('使用 正确答案: 标签的题目答案正确提取', () => {
+    const q = byContentC('《中图法》是我国建国后编制出版')
+    expect(q).toBeDefined()
+    expect(q!.answer).toBe('正确')
+  })
+
+  it('正确答案:错误 的题目答案正确提取', () => {
+    const q = byContentC('从属关系主题的文献一律依较大较全')
+    expect(q).toBeDefined()
+    expect(q!.answer).toBe('错误')
+  })
+})
+
+describe('c.docx source 与 ID', () => {
+  it('所有题目 source 为 c.docx', () => {
+    questionsC.forEach(q => expect(q.source).toBe('c.docx'))
+  })
+
+  it('所有 ID 唯一', () => {
+    const ids = new Set(questionsC.map(q => q.id))
+    expect(ids.size).toBe(questionsC.length)
+  })
+})

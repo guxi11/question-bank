@@ -17,7 +17,8 @@ const mergeQuestions = (
   incoming: Question[],
 ): Question[] => {
   const ids = new Set(existing.map(q => q.id))
-  return [...existing, ...incoming.filter(q => !ids.has(q.id))]
+  const contents = new Set(existing.map(q => q.content))
+  return [...existing, ...incoming.filter(q => !ids.has(q.id) && !contents.has(q.content))]
 }
 
 export const reducer = (state: AppState, action: Action): AppState => {
