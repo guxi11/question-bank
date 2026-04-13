@@ -73,7 +73,7 @@ describe('题型识别', () => {
       q => q.content.includes('多选') || fixture.includes(`【多选题】${q.content.slice(0, 6)}`),
     )
     // fallback: 任何 answer 为多字母的
-    const multi = questions.find(q => /^[A-Z]{2,}$/.test(q.answer))
+    const multi = questions.find(q => /^[A-Z](,[A-Z])+$/.test(q.answer))
     expect(multi?.type ?? q?.type).toBe('multiple')
   })
 
@@ -240,7 +240,7 @@ describe('b.docx 无句点题号（23 【多选题】）', () => {
     expect(q, '题号无句点的 Q23 丢失').toBeDefined()
     expect(q!.type).toBe('multiple')
     expect(q!.options).toHaveLength(5)
-    expect(q!.answer).toBe('AB')
+    expect(q!.answer).toBe('A,B')
   })
 })
 
@@ -356,5 +356,71 @@ describe('c.docx source 与 ID', () => {
   it('所有 ID 唯一', () => {
     const ids = new Set(questionsC.map(q => q.id))
     expect(ids.size).toBe(questionsC.length)
+  })
+})
+
+// ── 多选题答案格式兼容性 ──
+
+const makeMultiQ = (answer: string) =>
+  `1. 【多选题】测试题目\nA. 选项A\nB. 选项B\nC. 选项C\nD. 选项D\n答案：${answer}\n难易程度：易`
+
+describe('多选题答案格式兼容', () => {
+  const cases: [string, string][] = [
+    // [原始答案, 期望归一化结果]
+    ['ABCD', 'A,B,C,D'],
+    ['A,B,C,D', 'A,B,C,D'],
+    ['A，B，C，D', 'A,B,C,D'],
+    ['A、B、C、D', 'A,B,C,D'],
+    ['A B C D', 'A,B,C,D'],
+    ['A, B, C, D', 'A,B,C,D'],
+    ['A，B, C、D', 'A,B,C,D'],       // 混合分隔符
+    ['A,C,D', 'A,C,D'],
+    ['AB', 'A,B'],
+    ['A.B.C', 'A,B,C'],              // 半角点分隔
+    ['A．B．C', 'A,B,C'],             // 全角点分隔
+    ['abcd', 'A,B,C,D'],             // 小写字母
+    ['a, b, c', 'A,B,C'],            // 小写+空格+逗号
+    ['A;B;C', 'A,B,C'],              // 分号分隔
+    ['A；B；C', 'A,B,C'],             // 全角分号分隔
+    ['  A , B , C  ', 'A,B,C'],      // 前后空格
+    ['A·B·C·D', 'A,B,C,D'],          // 中点分隔
+  ]
+
+  cases.forEach(([raw, expected]) => {
+    it(`答案 "${raw}" → "${expected}"`, () => {
+      const qs = parseText(makeMultiQ(raw), 'test')
+      expect(qs).toHaveLength(1)
+      expect(qs[0].type).toBe('multiple')
+      expect(qs[0].answer).toBe(expected)
+    })
+  })
+})
+
+describe('单选题答案归一化', () => {
+  const makeSingleQ = (answer: string) =>
+    `1. 【单选题】测试单选\nA. 选项A\nB. 选项B\nC. 选项C\nD. 选项D\n答案：${answer}\n难易程度：易`
+
+  it('小写答案归一化为大写', () => {
+    const qs = parseText(makeSingleQ('b'), 'test')
+    expect(qs[0].answer).toBe('B')
+  })
+
+  it('答案前后空格被去除', () => {
+    const qs = parseText(makeSingleQ(' C '), 'test')
+    expect(qs[0].answer).toBe('C')
+  })
+})
+
+describe('多选题类型推断（无标签）', () => {
+  const makeUntaggedQ = (answer: string) =>
+    `1. 测试无标签多选\nA. 选项A\nB. 选项B\nC. 选项C\nD. 选项D\n答案：${answer}\n难易程度：易`
+
+  const multiFormats = ['AB', 'A,B', 'A，B', 'A、B', 'A B', 'a,b,c']
+
+  multiFormats.forEach(fmt => {
+    it(`答案 "${fmt}" 应推断为 multiple`, () => {
+      const qs = parseText(makeUntaggedQ(fmt), 'test')
+      expect(qs[0].type).toBe('multiple')
+    })
   })
 })

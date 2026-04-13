@@ -69,6 +69,18 @@ const parseOptions = (lines: string[]): string[] =>
     .filter(isOptionLine)
     .map(l => l.trim().replace(/^[A-Za-z][.、．]\s*/, ''))
 
+// Strip all possible separators between choice answer letters
+// Handles: comma, full-width comma, 顿号, space, dot, full-width dot, semicolon, full-width semicolon
+const stripAnswerSeps = (s: string): string =>
+  s.replace(/[,，、\s.．。;；·]/g, '').toUpperCase()
+
+// Normalize a choice answer to sorted, comma-separated uppercase letters
+// e.g. 'A, B，C' | 'ABCD' | 'A、B、C、D' → 'A,B,C,D'
+const normalizeChoiceAnswer = (raw: string): string =>
+  [...new Set(
+    stripAnswerSeps(raw).split('').filter(c => /[A-Z]/.test(c)),
+  )].sort().join(',')
+
 // Detect question type from content signals
 const detectType = (
   block: string,
@@ -83,10 +95,10 @@ const detectType = (
   if (/【填空题】/.test(block)) return 'blank'
   if (/_{2,}/.test(block)) return 'blank'
   if (optionCount === 0) return 'blank'
-  // Infer from answer: 2+ letters (with or without comma/space separators) = multiple
-  const letters = answer.replace(/[,，、\s]/g, '')
-  if (/^[A-Za-z]{2,}$/.test(letters)) return 'multiple'
-  if (/^[A-Za-z]$/.test(letters)) return 'single'
+  // Infer from answer: 2+ letters (with or without separators) = multiple
+  const letters = stripAnswerSeps(answer)
+  if (/^[A-Z]{2,}$/.test(letters)) return 'multiple'
+  if (/^[A-Z]$/.test(letters)) return 'single'
   return 'blank'
 }
 
@@ -128,10 +140,12 @@ const parseBlock = (block: string, source: string, index: number): Question | nu
 
   const type = detectType(block, answerRaw, options.length)
 
-  // Normalize judge answers: 对→正确, 错→错误
+  // Normalize answers by type
   const answer = type === 'judge'
     ? (/^(错误|错)$/.test(answerRaw.trim()) ? '错误' : '正确')
-    : answerRaw
+    : type === 'multiple' || type === 'single'
+      ? normalizeChoiceAnswer(answerRaw)
+      : answerRaw
 
   const id = hashStr(source + content + answer + index)
 
