@@ -86,7 +86,7 @@ const detectType = (
   // Infer from answer: 2+ letters (with or without comma/space separators) = multiple
   const letters = answer.replace(/[,，、\s]/g, '')
   if (/^[A-Za-z]{2,}$/.test(letters)) return 'multiple'
-  if (/^[A-Za-z]$/.test(answer)) return 'single'
+  if (/^[A-Za-z]$/.test(letters)) return 'single'
   return 'blank'
 }
 
