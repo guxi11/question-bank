@@ -301,20 +301,20 @@ describe('c.docx 总量', () => {
 })
 
 describe('c.docx 题型识别', () => {
-  it('单选题 323 道', () => {
-    expect(allOfC('single').length).toBe(323)
+  it('单选题 328 道', () => {
+    expect(allOfC('single').length).toBe(328)
   })
 
-  it('多选题 214 道', () => {
-    expect(allOfC('multiple').length).toBe(214)
+  it('多选题 221 道', () => {
+    expect(allOfC('multiple').length).toBe(221)
   })
 
   it('判断题 153 道', () => {
     expect(allOfC('judge').length).toBe(153)
   })
 
-  it('填空题 54 道', () => {
-    expect(allOfC('blank').length).toBe(54)
+  it('填空题 42 道', () => {
+    expect(allOfC('blank').length).toBe(42)
   })
 })
 
@@ -422,5 +422,56 @@ describe('多选题类型推断（无标签）', () => {
       const qs = parseText(makeUntaggedQ(fmt), 'test')
       expect(qs[0].type).toBe('multiple')
     })
+  })
+})
+
+// ── 内嵌选项解析（选项与题干同行） ──
+
+describe('内嵌选项解析', () => {
+  it('选项与题干同行时应正确拆分', () => {
+    const text = `6. 下列哪一项不属于研究内容？A. 哲学B. 事业建设C. 教育培训D. 建筑学\n\n答案：D\n难易程度：易`
+    const qs = parseText(text, 'test')
+    expect(qs).toHaveLength(1)
+    expect(qs[0].type).toBe('single')
+    expect(qs[0].options).toHaveLength(4)
+    expect(qs[0].options[0]).toBe('哲学')
+    expect(qs[0].answer).toBe('D')
+    expect(qs[0].content).not.toContain('A.')
+  })
+
+  it('内嵌多选答案应正确归一化', () => {
+    const text = `29. 特点包括哪些？（ ）A. 按领导系统B. 横向联系C. 重复建设D. 统一调配\n\n答案：A,C难易程度：中`
+    const qs = parseText(text, 'test')
+    expect(qs).toHaveLength(1)
+    expect(qs[0].type).toBe('multiple')
+    expect(qs[0].options).toHaveLength(4)
+    expect(qs[0].answer).toBe('A,C')
+  })
+
+  it('内嵌选项+空格分隔多选答案', () => {
+    const text = `1. 主要内容包括？A. 选项AB. 选项BC. 选项CD. 选项D\n答案：A, B, C\n难易程度：易`
+    const qs = parseText(text, 'test')
+    expect(qs).toHaveLength(1)
+    expect(qs[0].type).toBe('multiple')
+    expect(qs[0].answer).toBe('A,B,C')
+  })
+
+  it('单独行选项优先于内嵌选项', () => {
+    const text = `1. 测试题目\nA. 选项A\nB. 选项B\nC. 选项C\nD. 选项D\n答案：B\n难易程度：易`
+    const qs = parseText(text, 'test')
+    expect(qs).toHaveLength(1)
+    expect(qs[0].options).toHaveLength(4)
+    expect(qs[0].options[0]).toBe('选项A')
+  })
+})
+
+// ── 有选项但无答案时不应判为填空 ──
+
+describe('有选项无答案的类型推断', () => {
+  it('有选项但答案为空时应为 single 而非 blank', () => {
+    const text = `1. 测试题目\nA. 选项A\nB. 选项B\nC. 选项C\nD. 选项D\n答案：\n难易程度：易`
+    const qs = parseText(text, 'test')
+    expect(qs).toHaveLength(1)
+    expect(qs[0].type).toBe('single')
   })
 })

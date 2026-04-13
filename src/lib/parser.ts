@@ -94,11 +94,12 @@ const detectType = (
   if (/【单选题】/.test(block)) return 'single'
   if (/【填空题】/.test(block)) return 'blank'
   if (/_{2,}/.test(block)) return 'blank'
-  if (optionCount === 0) return 'blank'
   // Infer from answer: 2+ letters (with or without separators) = multiple
   const letters = stripAnswerSeps(answer)
   if (/^[A-Z]{2,}$/.test(letters)) return 'multiple'
   if (/^[A-Z]$/.test(letters)) return 'single'
+  // Has options → choice question (default single)
+  if (optionCount > 0) return 'single'
   return 'blank'
 }
 
@@ -112,6 +113,20 @@ const expandMetaLines = (lines: string[]): string[] =>
     return parts.length > 1 ? parts.map(p => p.trim()).filter(Boolean) : [n]
   })
 
+// Split content line that has embedded options like "Question?A. fooB. barC. baz"
+// Returns [contentPart, ...optionLines] or just [original] if no embedded options
+const splitContentAndOptions = (line: string): [string, string[]] => {
+  // Match the first option marker that appears after some content
+  const m = line.match(/^(.+?)([A-Da-d][.、．]\s*.+)$/)
+  if (!m) return [line, []]
+  const contentPart = m[1].trim()
+  const optionsPart = m[2]
+  // Split squished options
+  const parts = optionsPart.split(/(?=[A-Da-d][.、．]\s*)/).filter(Boolean)
+  const allOptions = parts.every(p => /^[A-Da-d][.、．]/.test(p))
+  return allOptions && parts.length >= 2 ? [contentPart, parts] : [line, []]
+}
+
 const parseBlock = (block: string, source: string, index: number): Question | null => {
   if (!block.trim()) return null
 
@@ -121,15 +136,23 @@ const parseBlock = (block: string, source: string, index: number): Question | nu
   if (rawLines.length < 2) return null
 
   // Question content: first line, strip leading number and type tag
-  const content = rawLines[0]
+  const firstLine = rawLines[0]
     .replace(/^\d+[.、．]?\s*/, '')
     .replace(/【[^】]+】/, '')
     .trim()
 
+  if (!firstLine) return null
+
+  // Try extracting embedded options from the content line
+  const [content, embeddedOpts] = splitContentAndOptions(firstLine)
+
   if (!content) return null
 
-  // Collect option lines (with squished expansion)
-  const options = parseOptions(rawLines.slice(1))
+  // Collect option lines: prefer separate lines, fall back to embedded
+  const separateOptions = parseOptions(rawLines.slice(1))
+  const options = separateOptions.length > 0
+    ? separateOptions
+    : parseOptions(embeddedOpts)
 
   // Extract metadata
   const answerRaw = extractField(rawLines, '答案', '正确答案')
