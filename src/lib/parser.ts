@@ -84,7 +84,7 @@ const detectType = (
   if (/_{2,}/.test(block)) return 'blank'
   if (optionCount === 0) return 'blank'
   // Infer from answer: 2+ letters (with or without comma/space separators) = multiple
-  const letters = answer.replace(/[,，\s]/g, '')
+  const letters = answer.replace(/[,，、\s]/g, '')
   if (/^[A-Za-z]{2,}$/.test(letters)) return 'multiple'
   if (/^[A-Za-z]$/.test(answer)) return 'single'
   return 'blank'
