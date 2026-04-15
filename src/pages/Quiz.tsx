@@ -40,7 +40,7 @@ const ChoiceQuestion = ({
       {question.options.map((opt, i) => {
         const letter = LETTERS[i]
         const isSelected = selected.includes(letter)
-        const isCorrect = question.answer.includes(letter)
+        const isCorrect = question.answer.split(',').includes(letter)
         let cls = 'border border-gray-200 bg-white text-gray-800'
         if (revealed) {
           if (isCorrect) cls = 'border-green-500 bg-green-50 text-green-800'

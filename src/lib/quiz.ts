@@ -30,7 +30,7 @@ const normalizeAnswer = (s: string) =>
   s.trim().replace(/\s+/g, '').toLowerCase()
 
 const sortLetters = (s: string) =>
-  s.toUpperCase().split('').sort().join('')
+  [...s.toUpperCase()].filter(c => /[A-Z]/.test(c)).sort().join('')
 
 export const checkAnswer = (question: Question, userAnswer: string): boolean => {
   const correct = question.answer.trim()
